@@ -2,44 +2,38 @@ import asyncio
 import json
 import logging
 
-import markovify
 from aiotg import Bot, Chat
+
+from bot.web_worker import get_office_state
 
 
 def run(config):
-    logging.info('start reading model file')
-    with open('model.json', 'r') as f:
-        model_json = f.read()
 
-    logging.info('start reading model')
-    model = markovify.Text.from_json(model_json)
-    logging.info('read model')
-
+    logging.info('Start bot...')
     bot = Bot(api_token=config.token, proxy=config.proxy['proxy_url'])
+
+    sensor_host = config.sensor_address.host
+    sensor_port = config.sensor_address.port
 
     @bot.command(r"/start")
     def start(chat: Chat, match):
         keyboard = {
-            "keyboard": [['Два чая, этому господину']],
+            "keyboard": [['Get air temperature in office.']],
             "resize_keyboard": True
         }
-        return chat.send_text("В основе меня лежат цепи маркова, а обучен я на фанфиках, книгах по "
-                              "программированию и ветхом завете. \n"
-                              "Можешь попробовать поговорить со мной.\n"
-                              "На любую вашу фразу я отвечу каким-то бредом.",
+        return chat.send_text("My only task is to tell you air temperature in NapoleonIT office.",
                               reply_markup=json.dumps(keyboard))
 
     @bot.default
     def answerer(chat, message):
-        answer = model.make_sentence()
-        logging.info(f"{chat.sender}, {message}: {answer}")
-        return chat.reply(answer)
+        logging.info(f"{chat}: {message}")
+        return chat.reply(get_office_state(sensor_host, sensor_port))
 
     channel = bot.channel(config.chanel)
 
     async def chanel_posting():
         while True:
-            await channel.send_text(model.make_sentence())
+            await channel.send_text(get_office_state(sensor_host, sensor_port))
             await asyncio.sleep(60 * config.interval)
 
     loop = asyncio.get_event_loop()
